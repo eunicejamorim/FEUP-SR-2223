@@ -1,0 +1,52 @@
+version: "3.9"
+
+services:
+  router:
+    build: ./netubuntu
+    command: /bin/bash -c "iptables -P FORWARD DROP && iptables -A FORWARD -p tcp -d 10.0.1.100 --dport 3389 -j ACCEPT && /bin/bash"
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    networks:
+      school_net:
+        ipv4_address: 10.0.1.254
+      attacker_net:
+        ipv4_address: 10.0.2.254
+  server:
+    build: ./xrdp
+    entrypoint: []
+    command: /bin/bash -c "ip r r default via 10.0.1.254 && /usr/bin/run.sh admin admin yes"
+    ports:
+      - 3389:3389
+    cap_add:
+      - NET_ADMIN
+    networks:
+      school_net:
+        ipv4_address: 10.0.1.100
+  client:
+    build: ./netubuntu
+    command: /bin/bash -c "ip r r default via 10.0.1.254 && /bin/bash"
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    networks:
+      school_net:
+        ipv4_address: 10.0.1.101
+  attacker:
+    build: ./netubuntu
+    command: /bin/bash -c "ip r r default via 10.0.2.254 && /bin/bash"
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    networks:
+      attacker_net:
+        ipv4_address: 10.0.2.100  
+networks:
+  attacker_net:
+    ipam:
+      config:
+        - subnet: 10.0.2.0/24
+  school_net:
+    ipam:
+      config:
+        - subnet: 10.0.1.0/24
