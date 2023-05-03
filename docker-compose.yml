@@ -3,7 +3,14 @@ version: "3.9"
 services:
   router:
     build: ./netubuntu
-    command: /bin/bash -c "iptables -P FORWARD DROP && iptables -A FORWARD -p tcp -d 10.0.1.100 --dport 3389 -j ACCEPT && /bin/bash"
+    command: /bin/bash -c "
+      iptables -P FORWARD DROP &&
+      iptables -A FORWARD -i eth0 -o eth1 -m conntrack --ctstate NEW -j ACCEPT &&
+      iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT &&
+      iptables -A FORWARD -i eth1 -o eth0 -p tcp --syn --dport 3389 -m conntrack --ctstate NEW -j ACCEPT &&
+      iptables -t nat -A PREROUTING -i eth1 -p tcp --dport 3389 -j DNAT --to-destination 10.0.1.100 &&
+      iptables -t nat -A POSTROUTING -o eth0 -p tcp --dport 3389 -d 10.0.1.100 -j SNAT --to-source 10.0.1.254 &&
+      /bin/bash"
     tty: true
     cap_add:
       - NET_ADMIN
@@ -42,11 +49,13 @@ services:
       attacker_net:
         ipv4_address: 10.0.2.100  
 networks:
-  attacker_net:
-    ipam:
-      config:
-        - subnet: 10.0.2.0/24
   school_net:
+    name: network_A
     ipam:
       config:
         - subnet: 10.0.1.0/24
+  attacker_net:
+    name: network_B
+    ipam:
+      config:
+        - subnet: 10.0.2.0/24
