@@ -10,6 +10,9 @@ services:
       iptables -A FORWARD -i eth1 -o eth0 -p tcp --syn --dport 3389 -m conntrack --ctstate NEW -j ACCEPT &&
       iptables -t nat -A PREROUTING -i eth1 -p tcp --dport 3389 -j DNAT --to-destination 10.0.1.100 &&
       iptables -t nat -A POSTROUTING -o eth0 -p tcp --dport 3389 -d 10.0.1.100 -j SNAT --to-source 10.0.1.254 &&
+      iptables -A FORWARD -i eth1 -o eth0 -p udp --dport 1194 -m conntrack --ctstate NEW -j ACCEPT &&
+      iptables -t nat -A PREROUTING -i eth1 -p udp --dport 1194 -j DNAT --to-destination 10.0.1.102 &&
+      iptables -t nat -A POSTROUTING -o eth0 -p udp --dport 1194 -d 10.0.1.102 -j SNAT --to-source 10.0.1.254 &&
       /bin/bash"
     tty: true
     cap_add:
@@ -19,6 +22,7 @@ services:
         ipv4_address: 10.0.1.254
       attacker_net:
         ipv4_address: 10.0.2.254
+  
   server:
     build: ./xrdp
     entrypoint: []
@@ -30,6 +34,7 @@ services:
     networks:
       school_net:
         ipv4_address: 10.0.1.100
+  
   client:
     build: ./netubuntu
     command: /bin/bash -c "ip r r default via 10.0.1.254 && /bin/bash"
@@ -39,6 +44,7 @@ services:
     networks:
       school_net:
         ipv4_address: 10.0.1.101
+  
   attacker:
     build: ./netubuntu
     command: /bin/bash -c "ip r r default via 10.0.2.254 && /bin/bash"
@@ -47,7 +53,39 @@ services:
       - NET_ADMIN
     networks:
       attacker_net:
-        ipv4_address: 10.0.2.100  
+        ipv4_address: 10.0.2.100
+  
+  vpn:
+    image: kylemanna/openvpn
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./vpn/config:/etc/openvpn
+    ports:
+      - 1194:1194/udp
+    networks:
+      school_net:
+        ipv4_address: 10.0.1.102
+  
+  vpnclient:
+    build: ./vpn
+    command: /bin/bash -c "
+      ip r r default via 10.0.2.254 &&
+      mkdir -p /dev/net &&
+      mknod /dev/net/tun c 10 200 &&
+      chmod 600 /dev/net/tun &&
+      openvpn /client.ovpn &&
+      /bin/bash"
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    networks:
+      attacker_net:
+        ipv4_address: 10.0.2.101
+    depends_on:
+      - vpn
+
+
 networks:
   school_net:
     name: network_A
