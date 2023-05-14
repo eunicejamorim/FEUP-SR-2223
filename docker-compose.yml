@@ -4,58 +4,79 @@ services:
   router:
     build: ./netubuntu
     command: /bin/bash -c "
+
       iptables -P FORWARD DROP &&
-      iptables -A FORWARD -i eth0 -o eth1 -m conntrack --ctstate NEW -j ACCEPT &&
-      iptables -A FORWARD -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT &&
-      iptables -A FORWARD -i eth1 -o eth0 -p tcp --syn --dport 3389 -m conntrack --ctstate NEW -j ACCEPT &&
-      iptables -t nat -A PREROUTING -i eth1 -p tcp --dport 3389 -j DNAT --to-destination 10.0.1.100 &&
-      iptables -t nat -A POSTROUTING -o eth0 -p tcp --dport 3389 -d 10.0.1.100 -j SNAT --to-source 10.0.1.254 &&
+      iptables -A FORWARD -i eth1 -m state --state NEW -j ACCEPT &&
+      iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT &&
+      iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE &&
+      
+      iptables -A FORWARD -i eth0 -o eth2 -p tcp --syn --dport 3389 -m state --state NEW -j ACCEPT &&
+      iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 3389 -j DNAT --to-destination 10.0.3.100 &&
+      iptables -t nat -A POSTROUTING -o eth2 -p tcp --dport 3389 -d 10.0.3.100 -j SNAT --to-source 10.0.3.254 &&
+
       /bin/bash"
     tty: true
     cap_add:
       - NET_ADMIN
     networks:
-      school_net:
+      outside_net:
         ipv4_address: 10.0.1.254
-      attacker_net:
+      school_net:
         ipv4_address: 10.0.2.254
+      server_net:
+        ipv4_address: 10.0.3.254
   server:
     build: ./xrdp
     entrypoint: []
-    command: /bin/bash -c "ip r r default via 10.0.1.254 && /usr/bin/run.sh admin admin yes"
+    command: /bin/bash -c "ip r r default via 10.0.3.254 && /usr/bin/run.sh admin admin yes"
     ports:
       - 3389:3389
     cap_add:
       - NET_ADMIN
     networks:
-      school_net:
-        ipv4_address: 10.0.1.100
+      server_net:
+        ipv4_address: 10.0.3.100
+    depends_on:
+      - router
   client:
-    build: ./netubuntu
-    command: /bin/bash -c "ip r r default via 10.0.1.254 && /bin/bash"
-    tty: true
-    cap_add:
-      - NET_ADMIN
-    networks:
-      school_net:
-        ipv4_address: 10.0.1.101
-  attacker:
     build: ./netubuntu
     command: /bin/bash -c "ip r r default via 10.0.2.254 && /bin/bash"
     tty: true
     cap_add:
       - NET_ADMIN
     networks:
-      attacker_net:
-        ipv4_address: 10.0.2.100  
+      - school_net
+    depends_on:
+      - router
+  attacker:
+    build: ./netubuntu
+    command: /bin/bash -c "
+      ip r a 10.0.2.0/24 via 10.0.1.254 &&
+      ip r a 10.0.3.0/24 via 10.0.1.254 &&
+      /bin/bash"
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    networks:
+      - outside_net
+    depends_on:
+      - router
 networks:
-  school_net:
+  outside_net:
     name: network_A
     ipam:
       config:
         - subnet: 10.0.1.0/24
-  attacker_net:
+          gateway: 10.0.1.1
+  school_net:
     name: network_B
     ipam:
       config:
         - subnet: 10.0.2.0/24
+          gateway: 10.0.2.1
+  server_net:
+    name: network_C
+    ipam:
+      config:
+        - subnet: 10.0.3.0/24
+          gateway: 10.0.3.1
