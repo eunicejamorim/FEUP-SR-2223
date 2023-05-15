@@ -51,6 +51,9 @@ services:
     build: ./xrdp
     entrypoint: []
     command: /bin/bash -c "
+      echo 'root:root' | chpasswd &&
+      echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config &&
+      service ssh start &&
       ip r a 10.0.2.0/24 via 10.0.1.254 &&
       ip r a 10.0.3.0/24 via 10.0.1.254 &&
       /usr/bin/run.sh admin admin yes"
