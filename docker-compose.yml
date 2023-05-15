@@ -30,8 +30,6 @@ services:
     build: ./xrdp
     entrypoint: []
     command: /bin/bash -c "ip r r default via 10.0.3.254 && /usr/bin/run.sh admin admin yes"
-    ports:
-      - 3389:3389
     cap_add:
       - NET_ADMIN
     networks:
@@ -50,12 +48,14 @@ services:
     depends_on:
       - router
   attacker:
-    build: ./netubuntu
+    build: ./xrdp
+    entrypoint: []
     command: /bin/bash -c "
       ip r a 10.0.2.0/24 via 10.0.1.254 &&
       ip r a 10.0.3.0/24 via 10.0.1.254 &&
-      /bin/bash"
-    tty: true
+      /usr/bin/run.sh admin admin yes"
+    ports:
+      - 3389:3389
     cap_add:
       - NET_ADMIN
     networks:
