@@ -9,16 +9,18 @@ services:
       iptables -t mangle -A PREROUTING -i eth0 ! -d 10.0.1.254 -j DROP &&
       iptables -P FORWARD DROP &&
       iptables -A FORWARD -i eth1 -o eth0 -m state --state NEW -j ACCEPT &&
-      iptables -A FORWARD -i eth2 -m state --state NEW -j ACCEPT &&
+      iptables -A FORWARD -i eth2 -o eth0 -m state --state NEW -j ACCEPT &&
+      iptables -A FORWARD -i eth3 -o eth0 -m state --state NEW -j ACCEPT &&
       iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT &&
       iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE &&
       
-      iptables -A FORWARD -i eth0 -o eth2 -p tcp --syn --dport 3389 -m state --state NEW -j ACCEPT &&
-      iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 3389 -j DNAT --to-destination 10.0.3.100 &&
-      iptables -t nat -A POSTROUTING -o eth2 -p tcp --dport 3389 -d 10.0.3.100 -j SNAT --to-source 10.0.3.254 &&
+      ip r a 10.0.4.0/24 via 10.0.0.100 &&
+      iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 3389 -j DNAT --to-destination 10.0.4.100 &&
+      iptables -A FORWARD -i eth0 -o eth3 -p tcp --syn --dport 3389 -m state --state NEW -j ACCEPT &&
+      iptables -t nat -A POSTROUTING -o eth3 -p tcp --dport 3389 -d 10.0.4.100 -j SNAT --to-source 10.0.0.254 &&
 
-      iptables -A FORWARD -i eth0 -o eth2 -p udp --dport 1194 -m state --state NEW -j ACCEPT &&
       iptables -t nat -A PREROUTING -i eth0 -p udp --dport 1194 -j DNAT --to-destination 10.0.3.101 &&
+      iptables -A FORWARD -i eth0 -o eth2 -p udp --dport 1194 -m state --state NEW -j ACCEPT &&
       iptables -t nat -A POSTROUTING -o eth2 -p udp --dport 1194 -d 10.0.3.101 -j SNAT --to-source 10.0.3.254 &&
 
       /bin/bash"
@@ -32,7 +34,9 @@ services:
         ipv4_address: 10.0.2.254
       server_net:
         ipv4_address: 10.0.3.254
-  
+      snort_net:
+        ipv4_address: 10.0.0.254
+      
   server:
     build: ./xrdp
     entrypoint: []
@@ -78,7 +82,7 @@ services:
       - outside_net
     depends_on:
       - router
-  
+
   vpn:
     image: kylemanna/openvpn
     command: /bin/bash -c "ip r r default via 10.0.3.254 && ovpn_run"
@@ -89,7 +93,35 @@ services:
     networks:
       server_net:
         ipv4_address: 10.0.3.101
-  
+
+  snort:
+    image: linton/docker-snort
+    command: /bin/bash -c "ip r r default via 10.0.0.254 && /bin/bash"
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./snort:/opt/rules
+    networks:
+      snort_net:
+        ipv4_address: 10.0.0.100
+      honeypot_net:
+        ipv4_address: 10.0.4.254
+    depends_on:
+      - router
+
+  honeypot:
+    build: ./xrdp
+    entrypoint: []
+    command: /bin/bash -c "ip r r default via 10.0.4.254 && /usr/bin/run.sh admin admin yes"
+    cap_add:
+      - NET_ADMIN
+    networks:
+      honeypot_net:
+        ipv4_address: 10.0.4.100
+    depends_on:
+      - router
+    
 networks:
   outside_net:
     name: network_A
@@ -109,3 +141,14 @@ networks:
       config:
         - subnet: 10.0.3.0/24
           gateway: 10.0.3.1
+  honeypot_net:
+    ipam:
+      config:
+        - subnet: 10.0.4.0/24
+          gateway: 10.0.4.1
+  snort_net:
+    name: network_D
+    ipam:
+      config:
+        - subnet: 10.0.0.0/24
+          gateway: 10.0.0.1
