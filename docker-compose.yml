@@ -7,7 +7,8 @@ services:
     command: /bin/bash -c "
 
       iptables -P FORWARD DROP &&
-      iptables -A FORWARD -i eth1 -m state --state NEW -j ACCEPT &&
+      iptables -A FORWARD -i eth1 -o eth0 -m state --state NEW -j ACCEPT &&
+      iptables -A FORWARD -i eth2 -m state --state NEW -j ACCEPT &&
       iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT &&
       iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE &&
       
@@ -35,8 +36,6 @@ services:
     build: ./xrdp
     entrypoint: []
     command: /bin/bash -c "ip r r default via 10.0.3.254 && /usr/bin/run.sh admin admin yes"
-    ports:
-      - 3389:3389
     cap_add:
       - NET_ADMIN
     networks:
@@ -57,11 +56,16 @@ services:
       - router
   
   attacker:
-    build: ./netubuntu
+    build: ./xrdp
+    entrypoint: []
     command: /bin/bash -c "
+      echo 'root:root' | chpasswd &&
+      echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config &&
+      service ssh start &&
       ip r r default via 10.0.1.254 &&
-      /bin/bash"
-    tty: true
+      /usr/bin/run.sh admin admin yes"
+    ports:
+      - 3389:3389
     cap_add:
       - NET_ADMIN
     networks:
