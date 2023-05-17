@@ -96,6 +96,8 @@ services:
     tty: true
     cap_add:
       - NET_ADMIN
+    volumes:
+      - ./snort:/opt/rules
     networks:
       server_net:
         ipv4_address: 10.0.3.102
