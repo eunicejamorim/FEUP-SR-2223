@@ -6,6 +6,7 @@ services:
     build: ./netubuntu
     command: /bin/bash -c "
 
+      iptables -t mangle -A PREROUTING -i eth0 ! -d 10.0.1.254 -j DROP &&
       iptables -P FORWARD DROP &&
       iptables -A FORWARD -i eth1 -o eth0 -m state --state NEW -j ACCEPT &&
       iptables -A FORWARD -i eth2 -m state --state NEW -j ACCEPT &&
@@ -63,7 +64,12 @@ services:
       echo 'PermitRootLogin yes' >> /etc/ssh/sshd_config &&
       service ssh start &&
       ip r r default via 10.0.1.254 &&
+      mkdir -p /dev/net &&
+      mknod /dev/net/tun c 10 200 &&
+      chmod 600 /dev/net/tun &&
       /usr/bin/run.sh admin admin yes"
+    volumes:
+      - ./vpn/client.ovpn:/client.ovpn
     ports:
       - 3389:3389
     cap_add:
@@ -80,28 +86,9 @@ services:
       - NET_ADMIN
     volumes:
       - ./vpn/config:/etc/openvpn
-    ports:
-      - 1194:1194/udp
     networks:
       server_net:
         ipv4_address: 10.0.3.101
-  
-  vpnclient:
-    build: ./vpn
-    command: /bin/bash -c "
-      ip r r default via 10.0.1.254 &&
-      mkdir -p /dev/net &&
-      mknod /dev/net/tun c 10 200 &&
-      chmod 600 /dev/net/tun &&
-      openvpn /client.ovpn &&
-      /bin/bash"
-    tty: true
-    cap_add:
-      - NET_ADMIN
-    networks:
-      - outside_net
-    depends_on:
-      - vpn
   
 networks:
   outside_net:
