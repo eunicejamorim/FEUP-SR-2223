@@ -91,7 +91,7 @@ services:
         ipv4_address: 10.0.3.101
 
   snort:
-    build: ./snort3
+    image: linton/docker-snort
     command: /bin/bash -c "ip r r default via 10.0.3.254 && /bin/bash"
     tty: true
     cap_add:
