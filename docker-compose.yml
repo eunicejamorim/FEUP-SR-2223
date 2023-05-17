@@ -1,6 +1,7 @@
 version: "3.9"
 
 services:
+
   router:
     build: ./netubuntu
     command: /bin/bash -c "
@@ -26,6 +27,7 @@ services:
         ipv4_address: 10.0.2.254
       server_net:
         ipv4_address: 10.0.3.254
+
   server:
     build: ./xrdp
     entrypoint: []
@@ -37,6 +39,7 @@ services:
         ipv4_address: 10.0.3.100
     depends_on:
       - router
+
   client:
     build: ./netubuntu
     command: /bin/bash -c "ip r r default via 10.0.2.254 && /bin/bash"
@@ -47,6 +50,7 @@ services:
       - school_net
     depends_on:
       - router
+
   attacker:
     build: ./xrdp
     entrypoint: []
@@ -65,6 +69,19 @@ services:
       - outside_net
     depends_on:
       - router
+
+  snort:
+    build: ./snort3
+    command: /bin/bash -c "ip r r default via 10.0.3.254 && /bin/bash"
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    networks:
+      server_net:
+        ipv4_address: 10.0.3.101
+    depends_on:
+      - router
+  
 networks:
   outside_net:
     name: network_A
