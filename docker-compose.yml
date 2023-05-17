@@ -59,8 +59,7 @@ services:
   attacker:
     build: ./netubuntu
     command: /bin/bash -c "
-      ip r a 10.0.2.0/24 via 10.0.1.254 &&
-      ip r a 10.0.3.0/24 via 10.0.1.254 &&
+      ip r r default via 10.0.1.254 &&
       /bin/bash"
     tty: true
     cap_add:
@@ -87,8 +86,6 @@ services:
     build: ./vpn
     command: /bin/bash -c "
       ip r r default via 10.0.1.254 &&
-      ip r a 10.0.2.0/24 via 10.0.1.254 &&
-      ip r a 10.0.3.101 via 10.0.1.254 &&
       mkdir -p /dev/net &&
       mknod /dev/net/tun c 10 200 &&
       chmod 600 /dev/net/tun &&

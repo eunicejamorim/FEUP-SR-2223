@@ -1,6 +1,6 @@
 #!/bin/bash
 
-VPN_SERVER="10.0.3.101:1194"
+VPN_SERVER="10.0.1.254:1194"
 
 # - Create and initialize opnevpn (create openvpn config)
 docker run -v $PWD/config:/etc/openvpn --rm kylemanna/openvpn ovpn_genconfig -u udp://${VPN_SERVER}
