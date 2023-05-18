@@ -5,7 +5,8 @@ from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import padding
 from cryptography.hazmat.primitives import serialization, hashes
 
-KEY = '../malware/key.key'
+# KEY = '../malware/key.key'
+KEY = 'key.key'
 
 def decrypt_keys(key):
     private_key = serialization.load_pem_private_key(
@@ -14,8 +15,8 @@ def decrypt_keys(key):
         backend=default_backend()
     )
 
-    with open(KEY, 'rb') as key_file:
-        content = key_file.read()
+    with open(KEY, 'r') as key_file:
+        content = bytes.fromhex(key_file.read())
         data = private_key.decrypt(
             content,
             padding.OAEP(
