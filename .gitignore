@@ -4,3 +4,4 @@ config/
 *.log
 OPEN_ME.png
 *.build
+key.key
