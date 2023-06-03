@@ -6,7 +6,8 @@ services:
     command: /bin/bash -c "
       ip r r default via 10.0.1.1 &&
       ip r a 10.0.5.8/29 via 10.0.5.3 &&
-      iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE &&
+      iptables -t nat -A PREROUTING -i eth1 -j DNAT --to-destination 10.0.5.11 &&
+      iptables -t nat -A POSTROUTING -o eth0 -j SNAT --to-source 10.0.5.2 &&
       /bin/bash"
     tty: true
     cap_add:
@@ -20,7 +21,8 @@ services:
       - snort
 
   snort:
-    image: ciscotalos/snort3
+    image: linton/docker-snort
+    command: /bin/bash -c "ip r r default via 10.0.5.2 && /bin/bash"
     tty: true
     cap_add:
       - NET_ADMIN
@@ -103,7 +105,6 @@ services:
       mkdir -p /dev/net &&
       mknod /dev/net/tun c 10 200 &&
       chmod 600 /dev/net/tun &&
-      ip r a 10.0.5.8/29 via 10.0.1.254 &&
       /usr/bin/run.sh admin admin yes"
     volumes:
       - ./vpn/client.ovpn:/client.ovpn
