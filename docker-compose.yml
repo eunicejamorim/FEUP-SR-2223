@@ -3,7 +3,11 @@ version: "3.9"
 services:
   switch:
     build: ./netubuntu
-    command: /bin/bash -c "ip r a 10.0.5.8/29 via 10.0.5.3 && /bin/bash"
+    command: /bin/bash -c "
+      ip r r default via 10.0.1.1 &&
+      ip r a 10.0.5.8/29 via 10.0.5.3 &&
+      iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE &&
+      /bin/bash"
     tty: true
     cap_add:
       - NET_ADMIN
@@ -16,8 +20,7 @@ services:
       - snort
 
   snort:
-    image: linton/docker-snort
-    command: /bin/bash -c "ip r a 10.0.1.0/24 via 10.0.5.2 && /bin/bash"
+    image: ciscotalos/snort3
     tty: true
     cap_add:
       - NET_ADMIN
@@ -33,8 +36,7 @@ services:
     build: ./netubuntu
     command: /bin/bash -c "
 
-      ip r a 10.0.5.0/29 via 10.0.5.10 &&
-      ip r a 10.0.1.0/24 via 10.0.5.10 &&
+      ip r r default via 10.0.5.10 &&
 
       iptables -t mangle -A PREROUTING -i eth0 ! -d 10.0.5.11 -j DROP &&
       iptables -P FORWARD DROP &&
