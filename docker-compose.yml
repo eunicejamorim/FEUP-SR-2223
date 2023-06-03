@@ -6,6 +6,7 @@ services:
     command: /bin/bash -c "
       ip r r default via 10.0.1.1 &&
       ip r a 10.0.5.8/29 via 10.0.5.3 &&
+      iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE &&
       iptables -t nat -A PREROUTING -i eth1 -j DNAT --to-destination 10.0.5.11 &&
       iptables -t nat -A POSTROUTING -o eth0 -j SNAT --to-source 10.0.5.2 &&
       /bin/bash"
