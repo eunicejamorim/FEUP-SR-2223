@@ -23,12 +23,12 @@ services:
 
   snort:
     image: linton/docker-snort
-    command: /bin/bash -c "ip r r default via 10.0.5.2 && /bin/bash"
+    command: /bin/bash -c "ip r r default via 10.0.5.2 && snort -T -i eth1 -c /etc/snort/rules/snort.conf"
     tty: true
     cap_add:
       - NET_ADMIN
     volumes:
-      - ./snort_drop:/opt/rules
+      - ./snort_drop:/etc/snort/rules
     networks:
       dmz1_net:
         ipv4_address: 10.0.5.3
