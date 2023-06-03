@@ -1,12 +1,35 @@
 version: "3.9"
 
 services:
-  
+  switch:
+    build: ./netubuntu
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    networks:
+      dmz1_net:
+        ipv4_address: 10.0.5.2
+      outside_net:
+        ipv4_address: 10.0.1.254
+
+  snort_dmz:
+    image: linton/docker-snort
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./snort_drop:/opt/rules
+    networks:
+      dmz1_net:
+        ipv4_address: 10.0.5.3
+      dmz2_net:
+        ipv4_address: 10.0.5.10
+
   router:
     build: ./netubuntu
     command: /bin/bash -c "
 
-      iptables -t mangle -A PREROUTING -i eth0 ! -d 10.0.1.254 -j DROP &&
+      iptables -t mangle -A PREROUTING -i eth0 ! -d 10.0.5.11 -j DROP &&
       iptables -P FORWARD DROP &&
       iptables -A FORWARD -i eth1 -o eth0 -m state --state NEW -j ACCEPT &&
       iptables -A FORWARD -i eth2 -o eth0 -m state --state NEW -j ACCEPT &&
@@ -28,8 +51,8 @@ services:
     cap_add:
       - NET_ADMIN
     networks:
-      outside_net:
-        ipv4_address: 10.0.1.254
+      dmz2_net:
+        ipv4_address: 10.0.5.11
       school_net:
         ipv4_address: 10.0.2.254
       server_net:
@@ -94,7 +117,7 @@ services:
       server_net:
         ipv4_address: 10.0.3.101
 
-  snort:
+  snort_honeypot:
     image: linton/docker-snort
     command: /bin/bash -c "ip r r default via 10.0.0.254 && /bin/bash"
     tty: true
@@ -124,11 +147,21 @@ services:
     
 networks:
   outside_net:
-    name: network_A
     ipam:
       config:
         - subnet: 10.0.1.0/24
           gateway: 10.0.1.1
+  dmz1_net:
+    ipam:
+      config:
+        - subnet: 10.0.5.0/29
+          gateway: 10.0.5.1
+  dmz2_net:
+    name: network_A
+    ipam:
+      config:
+        - subnet: 10.0.5.8/29
+          gateway: 10.0.5.9
   school_net:
     name: network_B
     ipam:
