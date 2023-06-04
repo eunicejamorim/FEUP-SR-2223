@@ -7,8 +7,8 @@ services:
       ip r r default via 10.0.1.1 &&
       ip r a 10.0.5.8/29 via 10.0.5.3 &&
       iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE &&
-      iptables -t nat -A PREROUTING -i eth1 -j DNAT --to-destination 10.0.5.11 &&
-      iptables -t nat -A POSTROUTING -o eth0 -j SNAT --to-source 10.0.5.2 &&
+      iptables -t nat -A PREROUTING -i eth1 -p udp --dport 1194 -j DNAT --to-destination 10.0.5.11 &&
+      iptables -t nat -A POSTROUTING -o eth0 -p udp --dport 1194 -d 10.0.5.11 -j SNAT --to-source 10.0.5.2 &&
       /bin/bash"
     tty: true
     cap_add:
@@ -21,15 +21,15 @@ services:
     depends_on:
       - snort_ips
 
-  # snort -T -i eth1 -c /etc/snort/rules/snort.conf
   snort_ips:
     image: linton/docker-snort
-    command: /bin/bash -c "ip r r default via 10.0.5.2 && /bin/bash"
+    command: /bin/bash -c "ip r r default via 10.0.5.2 && snort -q -l /var/log/snort -i eth1 -A console -c /etc/snort/etc/snort.conf -k none"
     tty: true
     cap_add:
       - NET_ADMIN
     volumes:
-      - ./snort_drop:/etc/snort/rules
+      - ./snort_ips/local.rules:/etc/snort/rules/local.rules
+      - ./snort_ips/logs:/var/log/snort
     networks:
       dmz1_net:
         ipv4_address: 10.0.5.3
@@ -108,6 +108,7 @@ services:
       mkdir -p /dev/net &&
       mknod /dev/net/tun c 10 200 &&
       chmod 600 /dev/net/tun &&
+      ip r a 10.0.5.8/29 via 10.0.1.254 &&
       /usr/bin/run.sh admin admin yes"
     volumes:
       - ./vpn/client.ovpn:/client.ovpn
@@ -136,12 +137,13 @@ services:
 
   snort_ids:
     image: linton/docker-snort
-    command: /bin/bash -c "ip r r default via 10.0.5.18 && /bin/bash"
+    command: /bin/bash -c "ip r r default via 10.0.5.18 && snort -q -l /var/log/snort -i eth1 -A console -c /etc/snort/etc/snort.conf -k none"
     tty: true
     cap_add:
       - NET_ADMIN
     volumes:
-      - ./snort:/opt/rules
+      - ./snort_ids/local.rules:/etc/snort/rules/local.rules
+      - ./snort_ids/logs:/var/log/snort
     networks:
       snort_net:
         ipv4_address: 10.0.5.19

@@ -1,0 +1,1 @@
+alert tcp $EXTERNAL_NET any -> $HOME_NET 3389 (msg:"Microsoft Windows RDP server connection attempt"; flags:S; sid:100001; rev:1;)
