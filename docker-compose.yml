@@ -19,11 +19,12 @@ services:
       outside_net:
         ipv4_address: 10.0.1.254
     depends_on:
-      - snort
+      - snort_ips
 
-  snort:
+  # snort -T -i eth1 -c /etc/snort/rules/snort.conf
+  snort_ips:
     image: linton/docker-snort
-    command: /bin/bash -c "ip r r default via 10.0.5.2 && snort -T -i eth1 -c /etc/snort/rules/snort.conf"
+    command: /bin/bash -c "ip r r default via 10.0.5.2 && /bin/bash"
     tty: true
     cap_add:
       - NET_ADMIN
@@ -49,9 +50,10 @@ services:
       iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT &&
       iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE &&
       
+      ip r a 10.0.4.0/24 via 10.0.5.19 &&
       iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 3389 -j DNAT --to-destination 10.0.4.100 &&
       iptables -A FORWARD -i eth0 -o eth3 -p tcp --syn --dport 3389 -m state --state NEW -j ACCEPT &&
-      iptables -t nat -A POSTROUTING -o eth3 -p tcp --dport 3389 -d 10.0.4.100 -j SNAT --to-source 10.0.4.254 &&
+      iptables -t nat -A POSTROUTING -o eth3 -p tcp --dport 3389 -d 10.0.4.100 -j SNAT --to-source 10.0.5.18 &&
 
       iptables -t nat -A PREROUTING -i eth0 -p udp --dport 1194 -j DNAT --to-destination 10.0.3.101 &&
       iptables -A FORWARD -i eth0 -o eth2 -p udp --dport 1194 -m state --state NEW -j ACCEPT &&
@@ -68,10 +70,10 @@ services:
         ipv4_address: 10.0.2.254
       server_net:
         ipv4_address: 10.0.3.254
-      honeypot_net:
-        ipv4_address: 10.0.4.254
+      snort_net:
+        ipv4_address: 10.0.5.18
     depends_on:
-      - snort
+      - snort_ips
       
   server:
     build: ./xrdp
@@ -119,7 +121,7 @@ services:
     depends_on:
       - switch
 
-  vpn:
+  vpn_server:
     image: kylemanna/openvpn
     command: /bin/bash -c "ip r r default via 10.0.3.254 && ovpn_run"
     cap_add:
@@ -129,6 +131,22 @@ services:
     networks:
       server_net:
         ipv4_address: 10.0.3.101
+    depends_on:
+      - router
+
+  snort_ids:
+    image: linton/docker-snort
+    command: /bin/bash -c "ip r r default via 10.0.5.18 && /bin/bash"
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./snort:/opt/rules
+    networks:
+      snort_net:
+        ipv4_address: 10.0.5.19
+      honeypot_net:
+        ipv4_address: 10.0.4.254
     depends_on:
       - router
 
@@ -142,7 +160,7 @@ services:
       honeypot_net:
         ipv4_address: 10.0.4.100
     depends_on:
-      - router
+      - snort_ids
     
 networks:
   outside_net:
@@ -173,8 +191,13 @@ networks:
       config:
         - subnet: 10.0.3.0/24
           gateway: 10.0.3.1
-  honeypot_net:
+  snort_net:
     name: network_D
+    ipam:
+      config:
+        - subnet: 10.0.5.16/29
+          gateway: 10.0.5.17
+  honeypot_net:
     ipam:
       config:
         - subnet: 10.0.4.0/24
