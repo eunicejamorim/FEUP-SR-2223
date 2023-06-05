@@ -1,12 +1,48 @@
 version: "3.9"
 
 services:
-  
+  switch:
+    build: ./netubuntu
+    command: /bin/bash -c "
+      ip r r default via 10.0.1.1 &&
+      ip r a 10.0.5.8/29 via 10.0.5.3 &&
+      iptables -t nat -A POSTROUTING -o eth1 -j MASQUERADE &&
+      iptables -t nat -A PREROUTING -i eth1 -p udp --dport 1194 -j DNAT --to-destination 10.0.5.11 &&
+      iptables -t nat -A POSTROUTING -o eth0 -p udp --dport 1194 -d 10.0.5.11 -j SNAT --to-source 10.0.5.2 &&
+      /bin/bash"
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    networks:
+      dmz1_net:
+        ipv4_address: 10.0.5.2
+      outside_net:
+        ipv4_address: 10.0.1.254
+    depends_on:
+      - snort_ips
+
+  snort_ids_1:
+    image: linton/docker-snort
+    command: /bin/bash -c "ip r r default via 10.0.5.2 && snort -q -l /var/log/snort -i eth1 -A console -c /etc/snort/etc/snort.conf -k none"
+    tty: true
+    cap_add:
+      - NET_ADMIN
+    volumes:
+      - ./snort_ids_1/local.rules:/etc/snort/rules/local.rules
+      - ./snort_ids_1/logs:/var/log/snort
+    networks:
+      dmz1_net:
+        ipv4_address: 10.0.5.3
+      dmz2_net:
+        ipv4_address: 10.0.5.10
+
   router:
     build: ./netubuntu
     command: /bin/bash -c "
 
-      iptables -t mangle -A PREROUTING -i eth0 ! -d 10.0.1.254 -j DROP &&
+      ip r r default via 10.0.5.10 &&
+
+      iptables -t mangle -A PREROUTING -i eth0 ! -d 10.0.5.11 -j DROP &&
       iptables -P FORWARD DROP &&
       iptables -A FORWARD -i eth1 -o eth0 -m state --state NEW -j ACCEPT &&
       iptables -A FORWARD -i eth2 -o eth0 -m state --state NEW -j ACCEPT &&
@@ -14,13 +50,15 @@ services:
       iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT &&
       iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE &&
       
-      ip r a 10.0.4.0/24 via 10.0.0.100 &&
+      ip r a 10.0.4.0/24 via 10.0.5.19 &&
       iptables -t nat -A PREROUTING -i eth0 -p tcp --dport 3389 -j DNAT --to-destination 10.0.4.100 &&
       iptables -A FORWARD -i eth0 -o eth3 -p tcp --syn --dport 3389 -m state --state NEW -j ACCEPT &&
-      iptables -t nat -A POSTROUTING -o eth3 -p tcp --dport 3389 -d 10.0.4.100 -j SNAT --to-source 10.0.0.254 &&
+      iptables -t nat -A POSTROUTING -o eth3 -p tcp --dport 3389 -d 10.0.4.100 -j SNAT --to-source 10.0.5.18 &&
 
       iptables -t nat -A PREROUTING -i eth0 -p udp --dport 1194 -j DNAT --to-destination 10.0.3.101 &&
+      iptables -t nat -A PREROUTING -i eth1 -p udp --dport 1194 -j DNAT --to-destination 10.0.3.101 &&
       iptables -A FORWARD -i eth0 -o eth2 -p udp --dport 1194 -m state --state NEW -j ACCEPT &&
+      iptables -A FORWARD -i eth1 -o eth2 -p udp --dport 1194 -m state --state NEW -j ACCEPT &&
       iptables -t nat -A POSTROUTING -o eth2 -p udp --dport 1194 -d 10.0.3.101 -j SNAT --to-source 10.0.3.254 &&
 
       /bin/bash"
@@ -28,14 +66,16 @@ services:
     cap_add:
       - NET_ADMIN
     networks:
-      outside_net:
-        ipv4_address: 10.0.1.254
+      dmz2_net:
+        ipv4_address: 10.0.5.11
       school_net:
         ipv4_address: 10.0.2.254
       server_net:
         ipv4_address: 10.0.3.254
       snort_net:
-        ipv4_address: 10.0.0.254
+        ipv4_address: 10.0.5.18
+    depends_on:
+      - snort_ips
       
   server:
     build: ./xrdp
@@ -51,8 +91,15 @@ services:
   
   client:
     build: ./netubuntu
-    command: /bin/bash -c "ip r r default via 10.0.2.254 && /bin/bash"
+    command: /bin/bash -c "
+      mkdir -p /dev/net &&
+      mknod /dev/net/tun c 10 200 &&
+      chmod 600 /dev/net/tun &&
+      ip r r default via 10.0.2.254 &&
+      /bin/bash"
     tty: true
+    volumes:
+      - ./vpn/client.ovpn:/client.ovpn
     cap_add:
       - NET_ADMIN
     networks:
@@ -70,6 +117,7 @@ services:
       mkdir -p /dev/net &&
       mknod /dev/net/tun c 10 200 &&
       chmod 600 /dev/net/tun &&
+      ip r a 10.0.5.8/29 via 10.0.1.254 &&
       /usr/bin/run.sh admin admin yes"
     volumes:
       - ./vpn/client.ovpn:/client.ovpn
@@ -81,9 +129,9 @@ services:
     networks:
       - outside_net
     depends_on:
-      - router
+      - switch
 
-  vpn:
+  vpn_server:
     image: kylemanna/openvpn
     command: /bin/bash -c "ip r r default via 10.0.3.254 && ovpn_run"
     cap_add:
@@ -93,18 +141,21 @@ services:
     networks:
       server_net:
         ipv4_address: 10.0.3.101
+    depends_on:
+      - router
 
-  snort:
+  snort_ids_2:
     image: linton/docker-snort
-    command: /bin/bash -c "ip r r default via 10.0.0.254 && /bin/bash"
+    command: /bin/bash -c "ip r r default via 10.0.5.18 && snort -q -l /var/log/snort -i eth1 -A console -c /etc/snort/etc/snort.conf -k none"
     tty: true
     cap_add:
       - NET_ADMIN
     volumes:
-      - ./snort:/opt/rules
+      - ./snort_ids_2/local.rules:/etc/snort/rules/local.rules
+      - ./snort_ids_2/logs:/var/log/snort
     networks:
       snort_net:
-        ipv4_address: 10.0.0.100
+        ipv4_address: 10.0.5.19
       honeypot_net:
         ipv4_address: 10.0.4.254
     depends_on:
@@ -120,15 +171,25 @@ services:
       honeypot_net:
         ipv4_address: 10.0.4.100
     depends_on:
-      - router
+      - snort_ids
     
 networks:
   outside_net:
-    name: network_A
     ipam:
       config:
         - subnet: 10.0.1.0/24
           gateway: 10.0.1.1
+  dmz1_net:
+    ipam:
+      config:
+        - subnet: 10.0.5.0/29
+          gateway: 10.0.5.1
+  dmz2_net:
+    name: network_A
+    ipam:
+      config:
+        - subnet: 10.0.5.8/29
+          gateway: 10.0.5.9
   school_net:
     name: network_B
     ipam:
@@ -141,14 +202,14 @@ networks:
       config:
         - subnet: 10.0.3.0/24
           gateway: 10.0.3.1
+  snort_net:
+    name: network_D
+    ipam:
+      config:
+        - subnet: 10.0.5.16/29
+          gateway: 10.0.5.17
   honeypot_net:
     ipam:
       config:
         - subnet: 10.0.4.0/24
           gateway: 10.0.4.1
-  snort_net:
-    name: network_D
-    ipam:
-      config:
-        - subnet: 10.0.0.0/24
-          gateway: 10.0.0.1
