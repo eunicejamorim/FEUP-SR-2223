@@ -56,7 +56,9 @@ services:
       iptables -t nat -A POSTROUTING -o eth3 -p tcp --dport 3389 -d 10.0.4.100 -j SNAT --to-source 10.0.5.18 &&
 
       iptables -t nat -A PREROUTING -i eth0 -p udp --dport 1194 -j DNAT --to-destination 10.0.3.101 &&
+      iptables -t nat -A PREROUTING -i eth1 -p udp --dport 1194 -j DNAT --to-destination 10.0.3.101 &&
       iptables -A FORWARD -i eth0 -o eth2 -p udp --dport 1194 -m state --state NEW -j ACCEPT &&
+      iptables -A FORWARD -i eth1 -o eth2 -p udp --dport 1194 -m state --state NEW -j ACCEPT &&
       iptables -t nat -A POSTROUTING -o eth2 -p udp --dport 1194 -d 10.0.3.101 -j SNAT --to-source 10.0.3.254 &&
 
       /bin/bash"
@@ -89,8 +91,15 @@ services:
   
   client:
     build: ./netubuntu
-    command: /bin/bash -c "ip r r default via 10.0.2.254 && /bin/bash"
+    command: /bin/bash -c "
+      mkdir -p /dev/net &&
+      mknod /dev/net/tun c 10 200 &&
+      chmod 600 /dev/net/tun &&
+      ip r r default via 10.0.2.254 &&
+      /bin/bash"
     tty: true
+    volumes:
+      - ./vpn/client.ovpn:/client.ovpn
     cap_add:
       - NET_ADMIN
     networks:
