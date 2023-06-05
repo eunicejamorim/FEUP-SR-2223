@@ -21,15 +21,15 @@ services:
     depends_on:
       - snort_ips
 
-  snort_ips:
+  snort_ids_1:
     image: linton/docker-snort
     command: /bin/bash -c "ip r r default via 10.0.5.2 && snort -q -l /var/log/snort -i eth1 -A console -c /etc/snort/etc/snort.conf -k none"
     tty: true
     cap_add:
       - NET_ADMIN
     volumes:
-      - ./snort_ips/local.rules:/etc/snort/rules/local.rules
-      - ./snort_ips/logs:/var/log/snort
+      - ./snort_ids_1/local.rules:/etc/snort/rules/local.rules
+      - ./snort_ids_1/logs:/var/log/snort
     networks:
       dmz1_net:
         ipv4_address: 10.0.5.3
@@ -144,15 +144,15 @@ services:
     depends_on:
       - router
 
-  snort_ids:
+  snort_ids_2:
     image: linton/docker-snort
     command: /bin/bash -c "ip r r default via 10.0.5.18 && snort -q -l /var/log/snort -i eth1 -A console -c /etc/snort/etc/snort.conf -k none"
     tty: true
     cap_add:
       - NET_ADMIN
     volumes:
-      - ./snort_ids/local.rules:/etc/snort/rules/local.rules
-      - ./snort_ids/logs:/var/log/snort
+      - ./snort_ids_2/local.rules:/etc/snort/rules/local.rules
+      - ./snort_ids_2/logs:/var/log/snort
     networks:
       snort_net:
         ipv4_address: 10.0.5.19
