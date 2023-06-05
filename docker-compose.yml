@@ -19,7 +19,7 @@ services:
       outside_net:
         ipv4_address: 10.0.1.254
     depends_on:
-      - snort_ips
+      - snort_ids_1
 
   snort_ids_1:
     image: linton/docker-snort
@@ -75,7 +75,7 @@ services:
       snort_net:
         ipv4_address: 10.0.5.18
     depends_on:
-      - snort_ips
+      - snort_ids_1
       
   server:
     build: ./xrdp
@@ -171,7 +171,7 @@ services:
       honeypot_net:
         ipv4_address: 10.0.4.100
     depends_on:
-      - snort_ids
+      - snort_ids_2
     
 networks:
   outside_net:
